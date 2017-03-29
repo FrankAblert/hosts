@@ -1,40 +1,41 @@
 #!/bin/bash
+# Normalize hosts file.
 # https://github.com/racaljk/hosts
 
 date_amend()
 {
-	# check if hosts file changes
+	# check if hosts file changes.
 	if git diff --exit-code "$1" > /dev/null; then
-		# hosts file is not changed,
-		# the date string will be set to the git log records.
-		local repo_date=$(git log --date=short -n1 "$1" | \
-				grep -Pom1 "\d+-\d+-\d+")
-		sed -i "s/[0-9]\+-[0-9]\+-[0-9]\+/$repo_date/" "$1"
+		# hosts file has not been modified, change the date
+		# to last commit date.
+		local commit_date=$(git log --pretty=format:"%cd" --date=short -1 "$1")
+
+		perl -i -pe "s|(?<=Last updated: )\d{4}-\d{2}-\d{2}|$commit_date|g" "$1"
 	else
-		# hosts file has been changed,
-		# set date string to the system date.
-		sed -i "s/[0-9]\+-[0-9]\+-[0-9]\+/$(date +%F)/" "$1"
+		# hosts file has been modified but not committed,
+		# change the date to system date.
+		perl -i -pe "s|(?<=Last updated: )\d{4}-\d{2}-\d{2}|$(date +%F)|g" "$1"
 	fi
 }
 
 eol_amend()
 {
-	dos2unix -q "$1"
+	# In case people don't have dos2unix.
+	cat "$1" | tr -d '\r' > h.swp
+	mv -f h.swp "$1"
 }
 
 style_amend()
 {
-	local orig="\([0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+\)[[:blank:]]\+"
-	local modified="\1$(echo -e "\t")"
-
-	sed -i "s/$orig/$modified/g" "$1"
+	perl -i -pe "s|((\d+\.){3}\d+)[ \t]+|\1\t|g" "$1"
+	# Remove leading and trailing whitespace.
+	perl -i -pe "s|^[ \t]+\|[ \t]+$||g" "$1"
 }
 
 if [ -z "$1" ]; then
-	echo "Usage: $0 [your-hosts-file]"
+	echo "Usage: $0 [hosts-file]"
 	exit 1
 fi
-
 
 eol_amend "$1"
 date_amend "$1"
